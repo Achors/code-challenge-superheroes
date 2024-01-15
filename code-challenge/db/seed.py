@@ -1,3 +1,8 @@
+from app import app, Hero, db, Power
+import random
+
+with app.app_context():
+
 puts "🦸‍♀️ Seeding powers..."
 Power.create([
   { name: "super strength", description: "gives the wielder super-human strengths" },
