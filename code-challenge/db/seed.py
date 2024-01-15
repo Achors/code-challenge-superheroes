@@ -1,8 +1,6 @@
 from app import app
 import random
 
-
-
 from models import  db, Hero, Power, HeroPower
 
 
