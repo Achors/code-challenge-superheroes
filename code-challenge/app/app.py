@@ -1,4 +1,4 @@
-# app.py
+
 import os
 from flask import Flask, jsonify, request
 from flask_migrate import Migrate
@@ -14,14 +14,14 @@ migrate = Migrate(app, db,directory='migrations')
 with app.app_context():
     db.create_all()
 
-# Get all heroes
+
 @app.route('/heroes', methods=['GET'])
 def get_heroes():
     heroes = Hero.query.all()
     heroes_list = [{"id": hero.id, "name": hero.name, "super_name": hero.super_name} for hero in heroes]
     return jsonify(heroes_list)
 
-# Get a specific hero by ID
+
 @app.route('/heroes/<int:hero_id>', methods=['GET'])
 def get_hero(hero_id):
     hero = Hero.query.get(hero_id)
@@ -37,14 +37,14 @@ def get_hero(hero_id):
         return jsonify({"error": "Hero not found"}), 404
 
 
-# Get all powers
+
 @app.route('/powers', methods=['GET'])
 def get_powers():
     powers = Power.query.all()
     powers_list = [{"id": power.id, "name": power.name, "description": power.description} for power in powers]
     return jsonify(powers_list)
 
-# Get a specific power by ID
+
 @app.route('/powers/<int:power_id>', methods=['GET'])
 def get_power(power_id):
     power = Power.query.get(power_id)
@@ -58,7 +58,7 @@ def get_power(power_id):
     else:
         return jsonify({"error": "Power not found"}), 404
 
-# Update a power by ID
+
 @app.route('/powers/<int:power_id>', methods=['PATCH'])
 def update_power(power_id):
     power = Power.query.get(power_id)
@@ -66,7 +66,7 @@ def update_power(power_id):
         data = request.get_json()
         power.description = data.get('description', power.description)
 
-        # Validate the description length (add validation if needed)
+        
 
         try:
             db.session.commit()
@@ -89,10 +89,10 @@ def create_hero_power():
         db.session.add(new_hero_power)
         db.session.commit()
 
-        # Fetch the hero data after the creation of HeroPower
+        
         hero = Hero.query.get(data['hero_id'])
 
-        if hero is not None:  # Check if hero is not None before accessing its attributes
+        if hero is not None:  
             hero_data = {
                 "id": hero.id,
                 "name": hero.name,
