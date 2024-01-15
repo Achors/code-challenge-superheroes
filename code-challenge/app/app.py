@@ -1,157 +1,116 @@
-#!/usr/bin/env python3
-
-from flask import Flask, make_response, jsonify, request
+# app.py
+import os
+from flask import Flask, jsonify, request
 from flask_migrate import Migrate
-
-from models import db, Hero, Power, hero_powers
+from models import db, Hero, Power, HeroPower
 
 app = Flask(__name__)
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///app.db"
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-migrate = Migrate(app, db)
+app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///your_database.db"
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
+migrate = Migrate(app, db,directory='migrations')
+ 
+with app.app_context():
+    db.create_all()
 
-
-@app.route("/")
-def home():
-    return """<h1> Phase 4 Code Challenge 1</h1>
-                <h2>Superheroes</h2>"""
-
-
-@app.route("/heroes")
+# Get all heroes
+@app.route('/heroes', methods=['GET'])
 def get_heroes():
     heroes = Hero.query.all()
+    heroes_list = [{"id": hero.id, "name": hero.name, "super_name": hero.super_name} for hero in heroes]
+    return jsonify(heroes_list)
 
-    hero_dict = [
-        {"id": hero.id, "name": hero.name, "super_name": hero.super_name}
-        for hero in heroes
-    ]
-
-    response = make_response(jsonify(hero_dict), 200)
-
-    return response
-
-
-@app.route("/heroes/<int:hero_id>", methods=["GET"])
-def get_hero_by_id(hero_id):
+# Get a specific hero by ID
+@app.route('/heroes/<int:hero_id>', methods=['GET'])
+def get_hero(hero_id):
     hero = Hero.query.get(hero_id)
-
-    if request.method == "GET":
-        if not hero:
-            response_body = {"error": "Hero not found"}
-            response = make_response(jsonify(response_body), 404)
-            return response
-
-        powers_dict = [
-            {"id": power.id, "name": power.name, "description": power.description}
-            for power in hero.powers
-        ]
-
-        hero_dict = {
+    if hero:
+        hero_data = {
             "id": hero.id,
             "name": hero.name,
             "super_name": hero.super_name,
-            "powers": powers_dict,
+            "powers": [{"id": hero_power.power.id, "name": hero_power.power.name, "description": hero_power.power.description} for hero_power in hero.hero_powers]
         }
+        return jsonify(hero_data)
+    else:
+        return jsonify({"error": "Hero not found"}), 404
 
-        response = make_response(jsonify(hero_dict), 200)
 
-        return response
-
-
-@app.route("/powers", methods=["GET"])
+# Get all powers
+@app.route('/powers', methods=['GET'])
 def get_powers():
     powers = Power.query.all()
+    powers_list = [{"id": power.id, "name": power.name, "description": power.description} for power in powers]
+    return jsonify(powers_list)
 
-    powers_dict = [
-        {"id": power.id, "name": power.name, "description": power.description}
-        for power in powers
-    ]
-
-    response = make_response(jsonify(powers_dict), 200)
-
-    return response
-
-
-@app.route("/powers/<int:power_id>", methods=["GET"])
-def get_powers_by_id(power_id):
+# Get a specific power by ID
+@app.route('/powers/<int:power_id>', methods=['GET'])
+def get_power(power_id):
     power = Power.query.get(power_id)
-    if request.method == "GET":
-        if not power:
-            response_body = {"error": "Power not found"}
-            response = make_response(jsonify(response_body), 404)
-            return response
-
+    if power:
         power_data = {
             "id": power.id,
             "name": power.name,
-            "description": power.description,
+            "description": power.description
         }
+        return jsonify(power_data)
+    else:
+        return jsonify({"error": "Power not found"}), 404
 
-        response = make_response(jsonify(power_data), 200)
-
-        return response
-
-
-@app.route("/powers/<int:power_id>", methods=["PATCH"])
+# Update a power by ID
+@app.route('/powers/<int:power_id>', methods=['PATCH'])
 def update_power(power_id):
     power = Power.query.get(power_id)
-    if not power:
-        return make_response(jsonify({"error": "Power not found"}), 404)
+    if power:
+        data = request.get_json()
+        power.description = data.get('description', power.description)
 
-    data = request.get_json()
-    if "description" not in data:
-        return make_response(jsonify({"error": "Description is required"}), 400)
+        # Validate the description length (add validation if needed)
 
-    description = data["description"]
-    power.description = description
-
-    try:
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        return make_response(jsonify({"error": str(e)}), 500)
-
-    power_data = {"id": power.id, "name": power.name, "description": power.description}
-
-    response = make_response(jsonify(power_data), 200)
-
-    return response
-
+        try:
+            db.session.commit()
+            return jsonify({
+                "id": power.id,
+                "name": power.name,
+                "description": power.description
+            })
+        except Exception as e:
+            return jsonify({"error": "Failed to update power"}), 500
+    else:
+        return jsonify({"error": "Power not found"}), 404
+# Create a new HeroPower
 @app.route('/hero_powers', methods=['POST'])
 def create_hero_power():
     data = request.get_json()
-    power_id = data.get('power_id')
-    hero_id = data.get('hero_id')
+    new_hero_power = HeroPower(strength=data['strength'], hero_id=data['hero_id'], power_id=data['power_id'])
 
-    if  not power_id or not hero_id:
-        return make_response(jsonify({'errors': ['Validation errors']}), 400)
+    try:
+        db.session.add(new_hero_power)
+        db.session.commit()
 
-    power = Power.query.get(power_id)
-    hero = Hero.query.get(hero_id)
+        # Fetch the hero data after the creation of HeroPower
+        hero = Hero.query.get(data['hero_id'])
 
-    if not power or not hero:
-        return make_response(jsonify({'error': 'Power or Hero not found'}), 404)
+        if hero is not None:  # Check if hero is not None before accessing its attributes
+            hero_data = {
+                "id": hero.id,
+                "name": hero.name,
+                "super_name": hero.super_name,
+                "powers": [{"id": power.id, "name": power.name, "description": power.description} for power in hero.hero_powers]
+            }
+            return jsonify(hero_data), 201
+        else:
+            return jsonify({"errors": ["Hero not found"]}), 404
 
-    hero_power = hero_powers(power=power, hero=hero)
-    db.session.add(hero_power)
-    db.session.commit()
-
-    powers = [{'id': p.id, 'name': p.name, 'description': p.description} for p in hero.powers]
-    hero_data = {
-        'id': hero.id,
-        'name': hero.name,
-        'super_name': hero.super_name,
-        'powers': powers
-    }
-
-    response = make_response(
-        jsonify(hero_data), 200)
-    
-    return response
+    except Exception as e:
+        return jsonify({"errors": ["Validation errors"]}), 400
 
 
-if __name__ == "__main__":
+
+@app.route('/')
+def home():
+    return ''
+
+if __name__ == '__main__':
     app.run(port=5555, debug=True)
